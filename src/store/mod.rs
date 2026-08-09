@@ -18,7 +18,19 @@ use duckdb::{params, Connection};
 use crate::edgar::facts::Fact;
 use crate::edgar::submissions::{CompanyMeta, Filing};
 use crate::edgar::tickers::Registrant;
+use crate::normalize::fiscal;
 use crate::Result;
+
+fn kind_str(kind: fiscal::Kind) -> &'static str {
+    match kind {
+        fiscal::Kind::Instant => "instant",
+        fiscal::Kind::Quarter => "quarter",
+        fiscal::Kind::Half => "half",
+        fiscal::Kind::NineMonth => "nine_month",
+        fiscal::Kind::Annual => "annual",
+        fiscal::Kind::Other => "other",
+    }
+}
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS registrants (
@@ -65,7 +77,15 @@ CREATE TABLE IF NOT EXISTS facts (
     form         VARCHAR,
     accession    VARCHAR NOT NULL,
     filed_date   DATE NOT NULL,   -- the knowability boundary
-    value        DOUBLE NOT NULL
+    value        DOUBLE NOT NULL,
+    -- Derived period identity (normalize::fiscal). The raw XBRL fy/fp
+    -- columns describe the *filing*, not the fact, so queries should use
+    -- these instead: period_kind ('quarter','annual','half','nine_month',
+    -- 'instant','other'), and for panel-worthy periods, the fiscal year and
+    -- period resolved against the company's own year-end.
+    period_kind  VARCHAR NOT NULL,
+    fy_derived   INTEGER,
+    fp_derived   VARCHAR
 );
 
 -- The safe read path. For each concept-period, the observation with the
@@ -168,8 +188,14 @@ impl Store {
         }
 
         {
+            let fye = meta.fiscal_year_end.as_deref();
             let mut app = tx.appender("facts")?;
             for f in facts {
+                let kind = fiscal::classify(f.period_start, f.period_end, f.is_instant);
+                let resolved = match kind {
+                    fiscal::Kind::Instant => fiscal::resolve_instant(f.period_end, fye),
+                    _ => fiscal::resolve(f.period_end, fye, kind),
+                };
                 app.append_row(params![
                     f.cik,
                     f.taxonomy,
@@ -183,7 +209,10 @@ impl Store {
                     f.form,
                     f.accession,
                     f.filed_date,
-                    f.value
+                    f.value,
+                    kind_str(kind),
+                    resolved.map(|r| r.fiscal_year),
+                    resolved.map(|r| r.fiscal_period.as_str())
                 ])?;
             }
         }
@@ -294,6 +323,32 @@ mod tests {
         let (companies, _, facts) = store.counts().unwrap();
         assert_eq!(companies, 1);
         assert_eq!(facts, 1);
+    }
+
+    /// Derived period identity comes from the period dates and the company's
+    /// own year-end — never from the filing's fy/fp tags.
+    #[test]
+    fn derived_fiscal_columns_are_populated() {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut m = meta();
+        m.fiscal_year_end = Some("1231".into());
+        // Deliberately wrong filing-level tags: the 10-K claims fy=2022, but
+        // the period itself is calendar 2020.
+        let mut f = fact("Revenues", "2021-02-15", "acc-1", 100.0);
+        f.fiscal_year = Some(2022);
+        store.put_company(&m, &[], &[f]).unwrap();
+
+        let (fy, fp, kind): (i32, String, String) = store
+            .connection()
+            .query_row(
+                "SELECT fy_derived, fp_derived, period_kind FROM facts",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(fy, 2020);
+        assert_eq!(fp, "FY");
+        assert_eq!(kind, "annual");
     }
 
     #[test]
