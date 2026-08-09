@@ -3,6 +3,7 @@
 [![CI](https://github.com/paul-weiss/asfiled/actions/workflows/ci.yml/badge.svg)](https://github.com/paul-weiss/asfiled/actions/workflows/ci.yml)
 [![Security audit](https://github.com/paul-weiss/asfiled/actions/workflows/audit.yml/badge.svg)](https://github.com/paul-weiss/asfiled/actions/workflows/audit.yml)
 [![Release](https://github.com/paul-weiss/asfiled/actions/workflows/release.yml/badge.svg)](https://github.com/paul-weiss/asfiled/releases)
+[![Docs](https://github.com/paul-weiss/asfiled/actions/workflows/docs.yml/badge.svg)](https://paul-weiss.github.io/asfiled/)
 [![Dependencies](https://deps.rs/repo/github/paul-weiss/asfiled/status.svg)](https://deps.rs/repo/github/paul-weiss/asfiled)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
@@ -10,7 +11,7 @@
 *As it was filed, when it was knowable.*
 
 > **Status: early.** The design below is settled; the code is landing
-> milestone by milestone. Watch the repo or check [asfiled.io](https://asfiled.io).
+> milestone by milestone. **[Documentation →](https://paul-weiss.github.io/asfiled/)**
 
 ## What this is
 
