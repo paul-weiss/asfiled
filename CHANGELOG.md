@@ -14,6 +14,12 @@ versioning follows [SemVer](https://semver.org/).
 - XBRL company facts: every numeric fact with its accession and filing date;
   restatements kept as additional observations, never merged.
 - `asfiled company <ticker|cik>` CLI command.
+- The point-in-time store (embedded DuckDB): append-only facts keyed by the
+  filing that reported them, and the `facts_asof(d)` table macro — the single
+  sanctioned read path, under which look-ahead bias is structurally
+  impossible. Ingestion is idempotent per company (delete-then-append in a
+  transaction, bulk-loaded via the Appender API).
+- `asfiled ingest <ids...>` and `asfiled query <sql>` CLI commands.
 
 ## [0.1.0] — 2026-08-09
 

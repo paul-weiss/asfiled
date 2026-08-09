@@ -20,6 +20,7 @@ pub struct Config {
     pub user_agent: String,
     pub data_dir: PathBuf,
     pub cache_dir: PathBuf,
+    pub db_path: PathBuf,
 }
 
 impl Config {
@@ -40,11 +41,15 @@ impl Config {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("data"));
         let cache_dir = data_dir.join("cache");
+        let db_path = get("ASFILED_DB")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| data_dir.join("asfiled.duckdb"));
 
         Ok(Self {
             user_agent,
             data_dir,
             cache_dir,
+            db_path,
         })
     }
 

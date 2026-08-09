@@ -9,6 +9,7 @@
 pub mod config;
 pub mod edgar;
 pub mod error;
+pub mod store;
 
 pub use config::Config;
 pub use error::Error;

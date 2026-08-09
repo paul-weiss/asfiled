@@ -38,4 +38,7 @@ pub enum Error {
         #[source]
         source: serde_json::Error,
     },
+
+    #[error("database error: {0}")]
+    Db(#[from] duckdb::Error),
 }

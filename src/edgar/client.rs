@@ -317,6 +317,7 @@ mod tests {
             user_agent: "test test@example.com".into(),
             data_dir: dir.path().to_path_buf(),
             cache_dir: dir.path().join("cache"),
+            db_path: dir.path().join("test.duckdb"),
         };
         (EdgarClient::new(config).unwrap(), dir)
     }
