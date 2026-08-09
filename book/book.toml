@@ -1,0 +1,9 @@
+[book]
+title = "asfiled"
+description = "The open point-in-time database of public company data"
+authors = ["Paul Weiss"]
+language = "en"
+
+[output.html]
+git-repository-url = "https://github.com/paul-weiss/asfiled"
+site-url = "/asfiled/"

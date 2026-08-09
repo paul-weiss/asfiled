@@ -1,0 +1,174 @@
+# The canonical statement template: screener items mapped onto XBRL tags.
+#
+# `tags` are in priority order — when several tags carry a value for the same
+# company-period, the earliest listed wins. Priorities encode real reporting
+# history (e.g. ASC 606 introduced RevenueFromContractWithCustomer alongside
+# the older Revenues/SalesRevenueNet), so order changes results: edit with a
+# reason.
+#
+# Deliberate omission: us-gaap:CostsAndExpenses is NEVER a cost_of_revenue
+# tag. It is a total that includes SG&A; mapping it to COGS corrupts every
+# gross-margin figure while making coverage look better. Roughly a fifth of
+# registrants report no separate cost-of-revenue line at all — that is a
+# coverage fact to surface, not to paper over.
+
+[items.revenue]
+label = "Revenue"
+statement = "income"
+kind = "flow"
+unit = "USD"
+tags = [
+  "RevenueFromContractWithCustomerExcludingAssessedTax",
+  "RevenueFromContractWithCustomerIncludingAssessedTax",
+  "Revenues",
+  "SalesRevenueNet",
+  "SalesRevenueGoodsNet",
+  "SalesRevenueServicesNet",
+]
+
+[items.cost_of_revenue]
+label = "Cost of revenue"
+statement = "income"
+kind = "flow"
+unit = "USD"
+tags = [
+  "CostOfRevenue",
+  "CostOfGoodsAndServicesSold",
+  "CostOfGoodsSold",
+  "CostOfServices",
+]
+
+[items.gross_profit]
+label = "Gross profit"
+statement = "income"
+kind = "flow"
+unit = "USD"
+tags = ["GrossProfit"]
+
+[items.operating_income]
+label = "Operating income"
+statement = "income"
+kind = "flow"
+unit = "USD"
+tags = ["OperatingIncomeLoss"]
+
+[items.net_income]
+label = "Net income"
+statement = "income"
+kind = "flow"
+unit = "USD"
+tags = [
+  "NetIncomeLoss",
+  "ProfitLoss",
+  "NetIncomeLossAvailableToCommonStockholdersBasic",
+]
+
+[items.eps_diluted]
+label = "Diluted EPS"
+statement = "income"
+kind = "flow"
+unit = "USD/shares"
+tags = ["EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted"]
+
+[items.assets]
+label = "Total assets"
+statement = "balance"
+kind = "instant"
+unit = "USD"
+tags = ["Assets"]
+
+[items.current_assets]
+label = "Current assets"
+statement = "balance"
+kind = "instant"
+unit = "USD"
+tags = ["AssetsCurrent"]
+
+[items.cash]
+label = "Cash and equivalents"
+statement = "balance"
+kind = "instant"
+unit = "USD"
+tags = [
+  "CashAndCashEquivalentsAtCarryingValue",
+  "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+]
+
+[items.receivables]
+label = "Accounts receivable, net"
+statement = "balance"
+kind = "instant"
+unit = "USD"
+tags = [
+  "AccountsReceivableNetCurrent",
+  "ReceivablesNetCurrent",
+  "AccountsReceivableNet",
+]
+
+[items.inventory]
+label = "Inventory, net"
+statement = "balance"
+kind = "instant"
+unit = "USD"
+tags = ["InventoryNet", "InventoryFinishedGoodsNetOfReserves"]
+
+[items.current_liabilities]
+label = "Current liabilities"
+statement = "balance"
+kind = "instant"
+unit = "USD"
+tags = ["LiabilitiesCurrent"]
+
+[items.total_liabilities]
+label = "Total liabilities"
+statement = "balance"
+kind = "instant"
+unit = "USD"
+tags = ["Liabilities"]
+
+[items.equity]
+label = "Stockholders' equity"
+statement = "balance"
+kind = "instant"
+unit = "USD"
+tags = [
+  "StockholdersEquity",
+  "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+]
+
+[items.long_term_debt]
+label = "Long-term debt"
+statement = "balance"
+kind = "instant"
+unit = "USD"
+tags = ["LongTermDebtNoncurrent", "LongTermDebt"]
+
+[items.operating_cash_flow]
+label = "Operating cash flow"
+statement = "cashflow"
+kind = "flow"
+unit = "USD"
+tags = [
+  "NetCashProvidedByUsedInOperatingActivities",
+  "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+]
+
+[items.capex]
+label = "Capital expenditures"
+statement = "cashflow"
+kind = "flow"
+unit = "USD"
+tags = [
+  "PaymentsToAcquirePropertyPlantAndEquipment",
+  "PaymentsToAcquireProductiveAssets",
+]
+
+[items.shares_outstanding]
+label = "Shares outstanding (diluted, weighted)"
+statement = "income"
+kind = "flow"
+unit = "shares"
+tags = [
+  "WeightedAverageNumberOfDilutedSharesOutstanding",
+  "WeightedAverageNumberOfSharesOutstandingBasic",
+]
