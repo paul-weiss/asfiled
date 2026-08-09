@@ -18,7 +18,7 @@ use duckdb::{params, Connection};
 use crate::edgar::facts::Fact;
 use crate::edgar::submissions::{CompanyMeta, Filing};
 use crate::edgar::tickers::Registrant;
-use crate::normalize::fiscal;
+use crate::normalize::{concept_map, fiscal};
 use crate::Result;
 
 fn kind_str(kind: fiscal::Kind) -> &'static str {
@@ -124,7 +124,67 @@ impl Store {
 
     fn init(conn: Connection) -> Result<Self> {
         conn.execute_batch(SCHEMA)?;
+        Self::install_concept_map(&conn)?;
         Ok(Self { conn })
+    }
+
+    /// (Re)install the canonical concept map and the `fundamentals_asof`
+    /// view. The template is compiled into the binary, so the table always
+    /// reflects the code that wrote it — replaced on every open, never
+    /// migrated.
+    fn install_concept_map(conn: &Connection) -> Result<()> {
+        let map = concept_map::default()?;
+        conn.execute_batch(
+            "CREATE OR REPLACE TABLE concept_map (
+                item      VARCHAR NOT NULL,
+                label     VARCHAR NOT NULL,
+                statement VARCHAR NOT NULL,
+                kind      VARCHAR NOT NULL,
+                unit      VARCHAR NOT NULL,
+                tag       VARCHAR NOT NULL,
+                tag_rank  INTEGER NOT NULL
+            );",
+        )?;
+        {
+            let mut app = conn.appender("concept_map")?;
+            for item in &map.items {
+                for (rank, tag) in item.tags.iter().enumerate() {
+                    app.append_row(params![
+                        item.key,
+                        item.label,
+                        item.statement,
+                        item.kind,
+                        item.unit,
+                        tag,
+                        rank as i32
+                    ])?;
+                }
+            }
+        }
+        // Canonical items over the safe read path: for each company-item-
+        // period, the best-ranked tag that carried a value wins. Everything
+        // inherits facts_asof's knowability guarantee.
+        conn.execute_batch(
+            "CREATE OR REPLACE MACRO fundamentals_asof(d) AS TABLE
+                SELECT * EXCLUDE (rn) FROM (
+                    SELECT f.cik, m.item, m.label, m.statement, m.kind,
+                           f.fy_derived, f.fp_derived,
+                           f.period_start, f.period_end, f.filed_date,
+                           f.accession, f.value,
+                           row_number() OVER (
+                               PARTITION BY f.cik, m.item, f.fy_derived, f.fp_derived
+                               ORDER BY m.tag_rank, f.period_end DESC,
+                                        f.filed_date DESC, f.accession DESC
+                           ) AS rn
+                    FROM facts_asof(d) f
+                    JOIN concept_map m
+                      ON f.taxonomy = 'us-gaap'
+                     AND f.concept = m.tag
+                     AND f.unit = m.unit
+                    WHERE f.fy_derived IS NOT NULL
+                ) WHERE rn = 1;",
+        )?;
+        Ok(())
     }
 
     pub fn connection(&self) -> &Connection {
@@ -349,6 +409,44 @@ mod tests {
         assert_eq!(fy, 2020);
         assert_eq!(fp, "FY");
         assert_eq!(kind, "annual");
+    }
+
+    /// fundamentals_asof maps tags to canonical items by priority: when both
+    /// the ASC 606 revenue tag and the legacy Revenues tag carry a value for
+    /// the same period, the 606 tag wins; a same-tag value in the wrong unit
+    /// never matches.
+    #[test]
+    fn fundamentals_prefers_priority_tag_and_respects_unit() {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut m = meta();
+        m.fiscal_year_end = Some("1231".into());
+
+        let legacy = fact("Revenues", "2021-02-15", "acc-1", 90.0);
+        let mut asc606 = fact(
+            "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "2021-02-15",
+            "acc-1",
+            100.0,
+        );
+        asc606.concept = "RevenueFromContractWithCustomerExcludingAssessedTax".into();
+        let mut wrong_unit = fact("Revenues", "2021-02-15", "acc-1", 7.0);
+        wrong_unit.unit = "shares".into();
+
+        store
+            .put_company(&m, &[], &[legacy, asc606, wrong_unit])
+            .unwrap();
+
+        let (item, value): (String, f64) = store
+            .connection()
+            .query_row(
+                "SELECT item, value FROM fundamentals_asof(DATE '2022-01-01')
+                 WHERE item = 'revenue'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(item, "revenue");
+        assert_eq!(value, 100.0); // ASC 606 tag outranks legacy; shares row ignored
     }
 
     #[test]

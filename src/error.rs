@@ -41,4 +41,7 @@ pub enum Error {
 
     #[error("database error: {0}")]
     Db(#[from] duckdb::Error),
+
+    #[error("invalid concept map: {0}")]
+    ConceptMap(String),
 }

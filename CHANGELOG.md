@@ -20,6 +20,15 @@ versioning follows [SemVer](https://semver.org/).
   impossible. Ingestion is idempotent per company (delete-then-append in a
   transaction, bulk-loaded via the Appender API).
 - `asfiled ingest <ids...>` and `asfiled query <sql>` CLI commands.
+- Fiscal calendar alignment: `period_kind` / `fy_derived` / `fp_derived`
+  derived from period dates and each company's own year-end, replacing the
+  misleading filing-level `fy`/`fp` tags.
+- The canonical concept map (`config/concepts.toml`, compiled in): ~19
+  screener items over priority-ordered us-gaap tags, with
+  `CostsAndExpenses` rejected as a cost tag at load. `fundamentals_asof(d)`
+  resolves tags to items on top of the safe read path — milestone M1
+  complete.
+- Documentation site (mdBook → GitHub Pages).
 
 ## [0.1.0] — 2026-08-09
 
