@@ -4,6 +4,17 @@ All notable changes to asfiled. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Per-company filing index from the submissions API: metadata, the
+  parallel-array filing table, and full-history shards. This is where
+  `filed_date` — the knowability boundary — enters the system.
+- XBRL company facts: every numeric fact with its accession and filing date;
+  restatements kept as additional observations, never merged.
+- `asfiled company <ticker|cik>` CLI command.
+
 ## [0.1.0] — 2026-08-09
 
 ### Added
