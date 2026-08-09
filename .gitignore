@@ -1,0 +1,19 @@
+# Private planning — never committed (public repo)
+/docs/REQUIREMENTS.md
+/CLAUDE.md
+
+# Secrets & local config
+.env
+.env.*
+
+# Data — rebuildable, never committed
+/data/
+
+# Rust
+/target/
+
+# Node (screener UI, later)
+node_modules/
+
+# OS
+.DS_Store

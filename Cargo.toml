@@ -1,0 +1,20 @@
+[package]
+name = "asfiled"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The open point-in-time database of public company data"
+repository = "https://github.com/paul-weiss/asfiled"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+flate2 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1_smol = "1"
+thiserror = "2"
+ureq = { version = "2", features = ["gzip"] }
+
+[dev-dependencies]
+tempfile = "3"
