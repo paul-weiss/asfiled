@@ -28,7 +28,7 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           tar czf asfiled-${{ github.ref_name }}-${{ matrix.target }}.tar.gz asfiled
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: target/${{ matrix.target }}/release/asfiled-*.tar.gz
           generate_release_notes: true
