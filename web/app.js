@@ -284,8 +284,17 @@ function render() {
       })
       .join("");
   }
+  const { minRev, industry } = controls();
+  const filterDesc = [
+    industry && `industry: ${industry}`,
+    Number(minRev) > 0 && `revenue > $${Number(minRev) / 1e9}B`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   document.getElementById("rowcount").textContent =
-    `${rows.length} compan${rows.length === 1 ? "y" : "ies"} · sorted by ${sortKey}`;
+    `${rows.length} compan${rows.length === 1 ? "y" : "ies"}` +
+    (filterDesc ? ` · ${filterDesc}` : "") +
+    ` · sorted by ${sortKey}`;
 }
 
 function wireControls() {
