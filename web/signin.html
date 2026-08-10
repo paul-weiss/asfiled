@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — asfiled</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗃️</text></svg>">
+<style>
+  :root {
+    --paper: #F5F7F9; --surface: #FFFFFF; --ink: #1A2530; --ink-2: #46586A;
+    --muted: #7E92A2; --line: #D9E1E8; --line-strong: #B9C6D1;
+    --brand: #1C3A5E; --time: #B4690E; --time-soft: #F6E8D4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0E151C; --surface: #151F29; --ink: #E6EDF3; --ink-2: #A7B8C6;
+      --muted: #718595; --line: #243240; --line-strong: #35485A;
+      --brand: #8FB5DC; --time: #D98F33; --time-soft: #33270F;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font: 15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+    display: grid; place-items: center; min-height: 100vh; padding: 24px;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 36px 40px; max-width: 420px; width: 100%;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 28px rgba(0,0,0,.07);
+  }
+  .brand { font: 700 26px/1 "Iowan Old Style", Palatino, Georgia, serif; }
+  .brand .dot { color: var(--time); }
+  .tagline { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-style: italic;
+             color: var(--muted); font-size: 13px; margin-top: 6px; }
+  p.blurb { color: var(--ink-2); font-size: 14px; margin: 18px 0 22px; }
+  label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
+          color: var(--muted); margin-bottom: 6px; }
+  input[type=email] {
+    width: 100%; padding: 11px 12px; font-size: 15px; color: var(--ink);
+    background: var(--paper); border: 1px solid var(--line-strong); border-radius: 7px;
+  }
+  input[type=email]:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+  button {
+    width: 100%; margin-top: 12px; padding: 11px; font-size: 15px; font-weight: 600;
+    color: var(--paper); background: var(--brand); border: none; border-radius: 7px; cursor: pointer;
+  }
+  .note { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+  .msg { margin-top: 14px; font-size: 14px; padding: 10px 12px; border-radius: 7px; display: none; }
+  .msg.ok { display: block; background: var(--time-soft); border: 1px solid var(--time); color: var(--ink); }
+  .msg.err { display: block; border: 1px solid var(--line-strong); color: var(--ink-2); }
+  .links { margin-top: 20px; font-size: 12.5px; color: var(--muted); }
+  .links a { color: var(--brand); text-decoration: none; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="brand">asfiled<span class="dot">.</span>io</div>
+  <div class="tagline">as it was filed, when it was knowable</div>
+  <p class="blurb">Point-in-time screening over US public-company filings.
+  Sign in with your email — no password, we send you a link.</p>
+  <form id="form">
+    <label for="email">Email</label>
+    <input id="email" type="email" required autocomplete="email" placeholder="you@example.com">
+    <button type="submit">Email me a sign-in link</button>
+  </form>
+  <div class="msg" id="msg"></div>
+  <p class="note">One click and you're in. The link expires in 15 minutes.</p>
+  <p class="links"><a href="https://paul-weiss.github.io/asfiled/">Documentation</a> ·
+     <a href="https://github.com/paul-weiss/asfiled">GitHub</a></p>
+</main>
+<script>
+  const form = document.getElementById("form");
+  const msg = document.getElementById("msg");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msg.className = "msg";
+    const resp = await fetch("/api/auth/request", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: document.getElementById("email").value }),
+    }).catch(() => null);
+    if (resp && resp.ok) {
+      msg.className = "msg ok";
+      msg.textContent = "Sent — check your email and click the link.";
+    } else {
+      const body = resp ? await resp.json().catch(() => ({})) : {};
+      msg.className = "msg err";
+      msg.textContent = body.error ?? "Couldn't send the email — try again shortly.";
+    }
+  });
+</script>
+</body>
+</html>

@@ -39,6 +39,43 @@ struct AppState {
     app_url: String,
     secure_cookies: bool,
     recent_requests: Mutex<HashMap<String, Vec<Instant>>>,
+    /// This address is promoted to `tier = 'admin'` on sign-in — set via
+    /// `ASFILED_ADMIN_EMAIL` (a deployment secret, never in the repo).
+    admin_email: Option<String>,
+    signin_page: PathBuf,
+}
+
+#[derive(Clone)]
+struct SessionUser {
+    id: i64,
+    email: String,
+    tier: String,
+}
+
+/// Resolve the session cookie to a user and stamp `last_seen_at` — the
+/// stamp is the whole point of requiring sign-in: knowing who uses the app.
+fn current_user(state: &AppState, headers: &HeaderMap) -> Option<SessionUser> {
+    let token = session_token_from_headers(headers)?;
+    let db = state.db.lock().unwrap();
+    let user = db
+        .query_row(
+            "SELECT u.id, u.email, u.tier FROM sessions s JOIN users u ON u.id = s.user_id
+             WHERE s.token = ? AND s.expires_at > ?",
+            params![token, Utc::now().to_rfc3339()],
+            |r| {
+                Ok(SessionUser {
+                    id: r.get(0)?,
+                    email: r.get(1)?,
+                    tier: r.get(2)?,
+                })
+            },
+        )
+        .ok()?;
+    let _ = db.execute(
+        "UPDATE users SET last_seen_at = ? WHERE id = ?",
+        params![Utc::now().to_rfc3339(), user.id],
+    );
+    Some(user)
 }
 
 enum Mailer {
@@ -118,6 +155,10 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 ";
 
+/// Idempotent column additions for databases created before the column
+/// existed (the ALTER fails harmlessly when it's already there).
+const USERS_MIGRATIONS: &[&str] = &["ALTER TABLE users ADD COLUMN last_seen_at TEXT"];
+
 fn new_token() -> String {
     let mut bytes = [0u8; 32];
     rand::rng().fill_bytes(&mut bytes);
@@ -161,6 +202,9 @@ async fn main() {
     }
     let db = Connection::open(&users_db).expect("open users db");
     db.execute_batch(USERS_SCHEMA).expect("users schema");
+    for migration in USERS_MIGRATIONS {
+        let _ = db.execute_batch(migration);
+    }
 
     let state = Arc::new(AppState {
         db: Mutex::new(db),
@@ -168,17 +212,34 @@ async fn main() {
         secure_cookies: app_url.starts_with("https://"),
         app_url,
         recent_requests: Mutex::new(HashMap::new()),
+        admin_email: std::env::var("ASFILED_ADMIN_EMAIL")
+            .ok()
+            .map(|e| e.trim().to_lowercase())
+            .filter(|e| !e.is_empty()),
+        signin_page: PathBuf::from(&static_dir).join("signin.html"),
     });
+
+    // The app and the data require sign-in: the point is knowing who uses
+    // it. Auth endpoints, the sign-in page, and the health check stay open
+    // (Lightsail probes /api/health unauthenticated).
+    let gated = Router::new()
+        .nest_service("/app", ServeDir::new(&static_dir))
+        .nest_service("/data", ServeDir::new(data_dir))
+        .layer(axum::middleware::from_fn_with_state(
+            Arc::clone(&state),
+            require_session,
+        ));
 
     let app = Router::new()
         .route("/", get(|| async { Redirect::permanent("/app/") }))
+        .route("/signin", get(signin_page))
         .route("/api/health", get(health))
         .route("/api/auth/request", post(auth_request))
         .route("/api/auth/verify", get(auth_verify))
         .route("/api/auth/logout", post(auth_logout))
         .route("/api/me", get(me))
-        .nest_service("/app", ServeDir::new(static_dir))
-        .nest_service("/data", ServeDir::new(data_dir))
+        .route("/api/admin/users", get(admin_users))
+        .merge(gated)
         .with_state(state);
 
     eprintln!("asfiled server listening on {addr}");
@@ -189,6 +250,69 @@ async fn main() {
         })
         .await
         .expect("server");
+}
+
+async fn require_session(
+    State(state): State<Arc<AppState>>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if current_user(&state, request.headers()).is_some() {
+        return next.run(request).await;
+    }
+    // Browser navigations get the sign-in page; programmatic fetches get 401.
+    let wants_html = request
+        .headers()
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|a| a.contains("text/html"));
+    if wants_html {
+        Redirect::to("/signin").into_response()
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": "sign in required"})),
+        )
+            .into_response()
+    }
+}
+
+async fn signin_page(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    match std::fs::read_to_string(&state.signin_page) {
+        Ok(html) => axum::response::Html(html).into_response(),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "sign-in page missing").into_response(),
+    }
+}
+
+/// Who is using the app — the reason sign-in exists. Admin tier only.
+async fn admin_users(State(state): State<Arc<AppState>>, headers: HeaderMap) -> impl IntoResponse {
+    match current_user(&state, &headers) {
+        Some(user) if user.tier == "admin" => {}
+        _ => return (StatusCode::FORBIDDEN, Json(json!({"error": "admin only"}))),
+    }
+    let db = state.db.lock().unwrap();
+    let mut stmt = db
+        .prepare(
+            "SELECT email, tier, created_at, coalesce(last_seen_at, '') FROM users
+             ORDER BY coalesce(last_seen_at, created_at) DESC",
+        )
+        .expect("prepare");
+    let users: Vec<_> = stmt
+        .query_map([], |r| {
+            Ok(json!({
+                "email": r.get::<_, String>(0)?,
+                "tier": r.get::<_, String>(1)?,
+                "created_at": r.get::<_, String>(2)?,
+                "last_seen_at": r.get::<_, String>(3)?,
+            }))
+        })
+        .expect("query")
+        .filter_map(Result::ok)
+        .collect();
+    (
+        StatusCode::OK,
+        Json(json!({"count": users.len(), "users": users})),
+    )
 }
 
 /// Verifies the database is readable, not just that the process is alive.
@@ -295,6 +419,13 @@ async fn auth_verify(
             params![email, Utc::now().to_rfc3339()],
         )
         .expect("upsert user");
+        if state.admin_email.as_deref() == Some(email.as_str()) {
+            db.execute(
+                "UPDATE users SET tier = 'admin' WHERE email = ?",
+                params![email],
+            )
+            .expect("promote admin");
+        }
         let user_id: i64 = db
             .query_row(
                 "SELECT id FROM users WHERE email = ?",
@@ -318,21 +449,12 @@ async fn auth_verify(
 }
 
 async fn me(State(state): State<Arc<AppState>>, headers: HeaderMap) -> impl IntoResponse {
-    let Some(token) = session_token_from_headers(&headers) else {
-        return (StatusCode::UNAUTHORIZED, Json(json!({"signed_in": false})));
-    };
-    let row = state.db.lock().unwrap().query_row(
-        "SELECT u.email, u.tier FROM sessions s JOIN users u ON u.id = s.user_id
-         WHERE s.token = ? AND s.expires_at > ?",
-        params![token, Utc::now().to_rfc3339()],
-        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
-    );
-    match row {
-        Ok((email, tier)) => (
+    match current_user(&state, &headers) {
+        Some(user) => (
             StatusCode::OK,
-            Json(json!({"signed_in": true, "email": email, "tier": tier})),
+            Json(json!({"signed_in": true, "email": user.email, "tier": user.tier})),
         ),
-        Err(_) => (StatusCode::UNAUTHORIZED, Json(json!({"signed_in": false}))),
+        None => (StatusCode::UNAUTHORIZED, Json(json!({"signed_in": false}))),
     }
 }
 

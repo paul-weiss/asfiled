@@ -96,6 +96,7 @@ jobs:
           IMAGE: ${{ steps.push.outputs.image }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          ADMIN_EMAIL: ${{ secrets.ASFILED_ADMIN_EMAIL }}
           LITESTREAM_ACCESS_KEY_ID: ${{ secrets.LITESTREAM_ACCESS_KEY_ID }}
           LITESTREAM_SECRET_ACCESS_KEY: ${{ secrets.LITESTREAM_SECRET_ACCESS_KEY }}
         run: |
@@ -108,6 +109,7 @@ jobs:
                   "ports": {"8080": "HTTP"},
                   "environment": {
                       "ASFILED_APP_URL": "https://asfiled.io",
+                      "ASFILED_ADMIN_EMAIL": os.environ["ADMIN_EMAIL"],
                       "ASFILED_SMTP_HOST": "email-smtp.us-east-1.amazonaws.com",
                       "ASFILED_SMTP_USER": os.environ["SMTP_USER"],
                       "ASFILED_SMTP_PASS": os.environ["SMTP_PASS"],

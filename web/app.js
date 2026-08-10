@@ -341,39 +341,20 @@ async function initAccount() {
   } catch {
     return;
   }
+  // The hosted app requires sign-in; the server already redirects page
+  // loads, this covers session expiry while the tab is open.
+  if (!me.signed_in) {
+    window.location.href = "/signin";
+    return;
+  }
   box.hidden = false;
-
-  const renderAccount = (state) => {
-    if (state.signed_in) {
-      action.textContent = "Sign out";
-      emailEl.textContent = state.email;
-    } else {
-      action.textContent = "Sign in";
-      emailEl.textContent = "";
-    }
-  };
-  renderAccount(me);
+  action.textContent = "Sign out";
+  emailEl.textContent = me.email;
 
   action.addEventListener("click", async (e) => {
     e.preventDefault();
-    if (action.textContent === "Sign out") {
-      await fetch("/api/auth/logout", { method: "POST" });
-      renderAccount({ signed_in: false });
-      return;
-    }
-    const email = window.prompt("Email for a sign-in link (no password):");
-    if (!email) return;
-    const resp = await fetch("/api/auth/request", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const body = await resp.json().catch(() => ({}));
-    window.alert(
-      resp.ok
-        ? "Check your email for the sign-in link."
-        : body.error ?? "Couldn't send the sign-in email."
-    );
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/signin";
   });
 }
 
