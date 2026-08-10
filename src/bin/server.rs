@@ -79,9 +79,10 @@ fn current_user(state: &AppState, headers: &HeaderMap) -> Option<SessionUser> {
 }
 
 enum Mailer {
-    /// SMTP relay (SES in production).
+    /// SMTP relay (SES in production). Boxed: the transport dwarfs the
+    /// other variant.
     Smtp {
-        transport: lettre::AsyncSmtpTransport<lettre::Tokio1Executor>,
+        transport: Box<lettre::AsyncSmtpTransport<lettre::Tokio1Executor>>,
         from: String,
     },
     /// No SMTP configured: log the link. Local development only.
@@ -103,7 +104,10 @@ impl Mailer {
                         user, pass,
                     ))
                     .build();
-                Mailer::Smtp { transport, from }
+                Mailer::Smtp {
+                    transport: Box::new(transport),
+                    from,
+                }
             }
             _ => Mailer::LogOnly,
         }
