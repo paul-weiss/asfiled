@@ -10,8 +10,9 @@
 **The open point-in-time database of public company data.**
 *As it was filed, when it was knowable.*
 
-> **Status: early.** The design below is settled; the code is landing
-> milestone by milestone. **[Documentation →](https://paul-weiss.github.io/asfiled/)**
+**Live at [asfiled.io](https://asfiled.io)** — passwordless email sign-in,
+44-company demo universe, refreshed daily.
+**[Documentation →](https://paul-weiss.github.io/asfiled/)**
 
 ## What this is
 
