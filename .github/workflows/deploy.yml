@@ -1,0 +1,153 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "web/**"
+      - "config/**"
+      - "Cargo.*"
+      - "Dockerfile"
+      - "entrypoint.sh"
+      - ".github/workflows/deploy.yml"
+  schedule:
+    - cron: "0 10 * * *" # daily data refresh + redeploy, 06:00 ET
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  SERVICE: asfiled
+
+concurrency: deploy-production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: edgar-cache-deploy-${{ github.run_id }}
+          restore-keys: edgar-cache-
+
+      - name: Tests
+        run: cargo test --release
+
+      - name: Ingest demo universe
+        env:
+          ASFILED_SEC_USER_AGENT: ${{ secrets.ASFILED_SEC_USER_AGENT }}
+        run: |
+          ./target/release/asfiled ingest \
+            AAPL MSFT NVDA AMZN GOOGL META TSLA AVGO ORCL CRM \
+            JPM BAC GS V MA BRK-B \
+            UNH JNJ LLY MRK ABBV PFE \
+            XOM CVX COP \
+            WMT PG KO PEP COST MCD HD NKE DIS \
+            BA CAT GE HON UPS \
+            T VZ INTC IBM AMD
+          ./target/release/asfiled publish --out data/publish
+
+      - name: Build image
+        run: docker build -t "$SERVICE" .
+
+      - name: Install lightsailctl
+        run: |
+          sudo curl -sLo /usr/local/bin/lightsailctl \
+            https://s3.us-west-2.amazonaws.com/lightsailctl/latest/linux-amd64/lightsailctl
+          sudo chmod +x /usr/local/bin/lightsailctl
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Push image to Lightsail
+        id: push
+        run: |
+          aws lightsail push-container-image \
+            --service-name "$SERVICE" --label app --image "$SERVICE:latest" | tee push.log
+          IMAGE=$(grep -o ":$SERVICE\.app\.[0-9]*" push.log | tail -1)
+          test -n "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      # A previous run's rollout keeps converging after that workflow ends;
+      # creating a deployment then fails with "deployment in progress".
+      - name: Wait for service to be idle
+        run: |
+          for i in $(seq 1 40); do
+            STATE=$(aws lightsail get-container-services --service-name "$SERVICE" \
+              --query 'containerServices[0].state' --output text)
+            echo "service state: $STATE"
+            case "$STATE" in READY|RUNNING) exit 0;; esac
+            sleep 15
+          done
+          echo "timed out waiting for service to go idle"; exit 1
+
+      - name: Deploy
+        env:
+          IMAGE: ${{ steps.push.outputs.image }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          LITESTREAM_ACCESS_KEY_ID: ${{ secrets.LITESTREAM_ACCESS_KEY_ID }}
+          LITESTREAM_SECRET_ACCESS_KEY: ${{ secrets.LITESTREAM_SECRET_ACCESS_KEY }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, subprocess
+          cfg = {
+              "serviceName": os.environ["SERVICE"],
+              "containers": {"app": {
+                  "image": os.environ["IMAGE"],
+                  "ports": {"8080": "HTTP"},
+                  "environment": {
+                      "ASFILED_APP_URL": "https://asfiled.io",
+                      "ASFILED_SMTP_HOST": "email-smtp.us-east-1.amazonaws.com",
+                      "ASFILED_SMTP_USER": os.environ["SMTP_USER"],
+                      "ASFILED_SMTP_PASS": os.environ["SMTP_PASS"],
+                      "ASFILED_MAIL_FROM": "asfiled <signin@asfiled.io>",
+                      "LITESTREAM_REPLICA_URL": "s3://asfiled-data/users",
+                      "AWS_ACCESS_KEY_ID": os.environ["LITESTREAM_ACCESS_KEY_ID"],
+                      "AWS_SECRET_ACCESS_KEY": os.environ["LITESTREAM_SECRET_ACCESS_KEY"],
+                      "AWS_REGION": "us-east-1",
+                  },
+              }},
+              "publicEndpoint": {
+                  "containerName": "app",
+                  "containerPort": 8080,
+                  # /api/health checks the users DB is readable, not merely
+                  # that the process is up.
+                  "healthCheck": {"path": "/api/health"},
+              },
+          }
+          with open("deployment.json", "w") as f:
+              json.dump(cfg, f)
+          subprocess.run(
+              ["aws", "lightsail", "create-container-service-deployment",
+               "--cli-input-json", "file://deployment.json"],
+              check=True, stdout=subprocess.DEVNULL)
+          print("deployment created")
+          EOF
+
+      - name: Wait for rollout
+        run: |
+          for i in $(seq 1 40); do
+            STATE=$(aws lightsail get-container-services --service-name "$SERVICE" \
+              --query 'containerServices[0].state' --output text)
+            echo "service state: $STATE"
+            [ "$STATE" = "RUNNING" ] && exit 0
+            sleep 15
+          done
+          echo "rollout did not reach RUNNING"; exit 1
+
+      - name: Smoke test
+        run: |
+          URL=$(aws lightsail get-container-services --service-name "$SERVICE" \
+            --query 'containerServices[0].url' --output text)
+          curl -sf "${URL}api/health"
+          curl -sf -o /dev/null "${URL}app/"
+          curl -sf "${URL}data/manifest.json" | head -c 200

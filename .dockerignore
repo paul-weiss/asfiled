@@ -1,0 +1,9 @@
+target/
+book/
+site/
+.git/
+.github/
+data/*
+!data/publish
+.env
+docs/
