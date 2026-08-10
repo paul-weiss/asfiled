@@ -117,10 +117,13 @@ pub struct EdgarClient {
 
 impl EdgarClient {
     pub fn new(config: Config) -> Result<Self> {
+        // The one place the SEC User-Agent is enforced: every network path
+        // goes through this client; offline commands never construct one.
+        let user_agent = config.user_agent.clone().ok_or(Error::MissingUserAgent)?;
         config.ensure_dirs()?;
         let agent = ureq::AgentBuilder::new()
             .timeout(REQUEST_TIMEOUT)
-            .user_agent(&config.user_agent)
+            .user_agent(&user_agent)
             .build();
         Ok(Self {
             config,
@@ -314,7 +317,7 @@ mod tests {
     fn test_client() -> (EdgarClient, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let config = Config {
-            user_agent: "test test@example.com".into(),
+            user_agent: Some("test test@example.com".into()),
             data_dir: dir.path().to_path_buf(),
             cache_dir: dir.path().join("cache"),
             db_path: dir.path().join("test.duckdb"),

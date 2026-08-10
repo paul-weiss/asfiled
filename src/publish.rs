@@ -95,9 +95,10 @@ mod tests {
         let published = publish(&store, dir.path()).unwrap();
         assert_eq!(published.len(), 4);
         assert!(dir.path().join("facts.parquet").exists());
-        let manifest: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(dir.path().join("manifest.json")).unwrap())
-                .unwrap();
+        let manifest: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.path().join("manifest.json")).unwrap(),
+        )
+        .unwrap();
         assert_eq!(manifest["format_version"], 1);
         assert_eq!(manifest["tables"].as_array().unwrap().len(), 4);
     }

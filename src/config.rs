@@ -17,7 +17,9 @@ pub const SEC_RATE_LIMIT_PER_SEC: f64 = 8.0;
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub user_agent: String,
+    /// Required only for commands that touch SEC hosts — `EdgarClient::new`
+    /// enforces it. Offline commands (query, publish) run without it.
+    pub user_agent: Option<String>,
     pub data_dir: PathBuf,
     pub cache_dir: PathBuf,
     pub db_path: PathBuf,
@@ -34,8 +36,7 @@ impl Config {
 
         let user_agent = get("ASFILED_SEC_USER_AGENT")
             .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-            .ok_or(Error::MissingUserAgent)?;
+            .filter(|v| !v.is_empty());
 
         let data_dir = get("ASFILED_DATA_DIR")
             .map(PathBuf::from)
