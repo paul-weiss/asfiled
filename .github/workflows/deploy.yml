@@ -34,8 +34,10 @@ jobs:
           key: edgar-cache-deploy-${{ github.run_id }}
           restore-keys: edgar-cache-
 
-      - name: Tests
-        run: cargo test --release
+      - name: Tests and build
+        run: |
+          cargo test --release
+          cargo build --release --bin asfiled
 
       - name: Ingest demo universe
         env:
