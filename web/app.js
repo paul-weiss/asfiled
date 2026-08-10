@@ -316,6 +316,60 @@ function wireControls() {
   });
 }
 
+// Accounts are optional infrastructure: the API exists on the hosted
+// deployment, not on static mirrors. The control only appears when
+// /api/me answers in the shape our server speaks.
+async function initAccount() {
+  const box = document.getElementById("account");
+  const action = document.getElementById("account-action");
+  const emailEl = document.getElementById("account-email");
+  let me;
+  try {
+    const resp = await fetch("/api/me");
+    if (resp.status !== 200 && resp.status !== 401) return;
+    me = await resp.json();
+    if (typeof me.signed_in !== "boolean") return;
+  } catch {
+    return;
+  }
+  box.hidden = false;
+
+  const renderAccount = (state) => {
+    if (state.signed_in) {
+      action.textContent = "Sign out";
+      emailEl.textContent = state.email;
+    } else {
+      action.textContent = "Sign in";
+      emailEl.textContent = "";
+    }
+  };
+  renderAccount(me);
+
+  action.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (action.textContent === "Sign out") {
+      await fetch("/api/auth/logout", { method: "POST" });
+      renderAccount({ signed_in: false });
+      return;
+    }
+    const email = window.prompt("Email for a sign-in link (no password):");
+    if (!email) return;
+    const resp = await fetch("/api/auth/request", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    window.alert(
+      resp.ok
+        ? "Check your email for the sign-in link."
+        : body.error ?? "Couldn't send the sign-in email."
+    );
+  });
+}
+
+initAccount();
+
 init().catch((err) => {
   document.getElementById("grid-body").innerHTML =
     `<tr><td class="l loading" colspan="12">Failed to start: ${String(err).slice(0, 300)}</td></tr>`;

@@ -7,15 +7,21 @@ description = "The open point-in-time database of public company data"
 repository = "https://github.com/paul-weiss/asfiled"
 
 [dependencies]
+axum = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 duckdb = { version = "1", features = ["bundled", "chrono"] }
 flate2 = "1"
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "builder"] }
+rand = "0.9"
+rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha1_smol = "1"
 thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 toml = "0.8"
+tower-http = { version = "0.6", features = ["fs"] }
 ureq = { version = "2", features = ["gzip"] }
 
 [dev-dependencies]
