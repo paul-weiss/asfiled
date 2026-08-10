@@ -1,6 +1,11 @@
 # Stage 1: build the server (bundled DuckDB makes this the slow stage;
 # CI caches cargo's registry via the workflow, not here).
 FROM rust:1.92-slim AS build
+# g++ for bundled DuckDB's C++ build (the CLI and server share one package,
+# so the lib — DuckDB included — compiles even for the server binary).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends g++ \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY src/ ./src/
