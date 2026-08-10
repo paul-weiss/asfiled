@@ -33,6 +33,12 @@ enum Command {
     /// Run read-only SQL against the store. `facts_asof(DATE '...')` is the
     /// sanctioned path for historical queries.
     Query { sql: String },
+    /// Export the store as Parquet + manifest for publication.
+    Publish {
+        /// Output directory.
+        #[arg(long, default_value = "data/publish")]
+        out: std::path::PathBuf,
+    },
 }
 
 fn main() {
@@ -161,6 +167,14 @@ fn run() -> asfiled::Result<()> {
                 count += 1;
             }
             eprintln!("({count} rows)");
+        }
+        Command::Publish { out } => {
+            let store = Store::open(&config.db_path)?;
+            let published = asfiled::publish::publish(&store, &out)?;
+            for (table, rows) in &published {
+                println!("{}: {} rows", table, rows);
+            }
+            println!("published to {}", out.display());
         }
     }
     Ok(())

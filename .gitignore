@@ -20,3 +20,4 @@ node_modules/
 
 # mdBook output
 /book/book/
+/site/

@@ -1,0 +1,79 @@
+name: Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "book/**"
+      - "web/**"
+      - "src/**"
+      - "config/**"
+      - "Cargo.*"
+      - ".github/workflows/site.yml"
+  schedule:
+    - cron: "0 10 * * *" # daily data refresh, 06:00 ET
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  # Large caps across sectors — the demo slice until the full-universe release.
+  DEMO_TICKERS: >-
+    AAPL MSFT NVDA AMZN GOOGL META TSLA AVGO ORCL CRM
+    JPM BAC GS V MA BRK-B
+    UNH JNJ LLY MRK ABBV PFE
+    XOM CVX COP
+    WMT PG KO PEP COST MCD HD NKE DIS
+    BA CAT GE HON UPS
+    T VZ INTC IBM AMD
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: latest
+      # The EDGAR disk cache persists across runs so daily refreshes only
+      # refetch what actually changes (submissions/facts within max_age).
+      - uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: edgar-cache-${{ github.run_id }}
+          restore-keys: edgar-cache-
+      - name: Build
+        run: cargo build --release
+      - name: Ingest demo universe
+        env:
+          ASFILED_SEC_USER_AGENT: ${{ secrets.ASFILED_SEC_USER_AGENT }}
+        run: ./target/release/asfiled ingest $DEMO_TICKERS
+      - name: Assemble site
+        run: |
+          mdbook build book
+          mkdir -p site/app
+          cp -r book/book/* site/
+          cp web/* site/app/
+          ./target/release/asfiled publish --out site/data
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

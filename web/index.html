@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>asfiled — the point-in-time screener</title>
+<meta name="description" content="Public company fundamentals as they were filed, when they were knowable. Point-in-time screening in your browser.">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗃️</text></svg>">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <span class="brand serif">asfiled<span class="dot">.</span>io</span>
+    <span class="tagline serif">as it was filed, when it was knowable</span>
+    <nav class="main">
+      <a class="active" href="#">Screener</a>
+      <a href="../">Docs</a>
+      <a href="https://github.com/paul-weiss/asfiled">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<section class="asof">
+  <div class="wrap asof-inner">
+    <label class="asof-label serif" for="asof-date">What was knowable on</label>
+    <span class="asof-date">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M7 3.5V7l2.4 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <input id="asof-date" type="date" value="2020-06-30" min="1994-01-01">
+    </span>
+    <span class="presets" id="presets">
+      <button class="chip now" data-date="today">Today</button>
+      <button class="chip" data-date="2020-03-23">Covid low · 2020-03-23</button>
+      <button class="chip" data-date="2023-03-10">SVB failure · 2023-03-10</button>
+      <label class="chip select-chip">Scenarios
+        <select id="scenario">
+          <option value="">…</option>
+          <optgroup label="In coverage (XBRL, 2009→)">
+            <option value="2010-05-06">Flash Crash · 2010-05-06</option>
+            <option value="2011-08-08">US credit downgrade · 2011-08-08</option>
+            <option value="2013-06-24">Taper tantrum · 2013-06-24</option>
+            <option value="2015-08-24">China devaluation · 2015-08-24</option>
+            <option value="2016-02-11">Oil crash low · 2016-02-11</option>
+            <option value="2018-02-05">Volmageddon · 2018-02-05</option>
+            <option value="2018-12-24">Christmas Eve low · 2018-12-24</option>
+            <option value="2019-09-17">Repo spike · 2019-09-17</option>
+            <option value="2021-01-27">GME squeeze · 2021-01-27</option>
+            <option value="2022-10-14">Rate-shock low · 2022-10-14</option>
+            <option value="2024-08-05">Yen carry unwind · 2024-08-05</option>
+          </optgroup>
+          <optgroup label="Pre-XBRL era (filings exist; structured facts don't)">
+            <option value="2008-09-15">Lehman · 2008-09-15</option>
+            <option value="2008-03-16">Bear Stearns · 2008-03-16</option>
+            <option value="2001-12-02">Enron collapse · 2001-12-02</option>
+            <option value="2000-03-10">Dot-com peak · 2000-03-10</option>
+            <option value="1998-09-23">LTCM rescue · 1998-09-23</option>
+          </optgroup>
+        </select>
+      </label>
+    </span>
+    <span class="asof-note">Every number below is the latest value <em>filed on or before</em> this date. Restatements filed later are invisible — as they were then. XBRL coverage begins 2009.</span>
+  </div>
+</section>
+
+<main class="wrap">
+
+  <div class="querybar">
+    <div class="qb-row">
+      <div class="qb-input" title="English → SQL lands in milestone M3. The SQL below is live today.">
+        <span class="prompt serif">Ask&nbsp;›</span>
+        <input class="text" disabled placeholder="English queries land in M3 — the SQL underneath is live now">
+      </div>
+      <button class="btn" id="toggle-sql" aria-expanded="false">Show SQL</button>
+    </div>
+    <div class="sql" id="sql-panel" hidden>
+      <div class="sql-head">
+        <span class="ok" id="sql-status">✓</span>
+        <span id="sql-meta">runs entirely in your browser via DuckDB-WASM</span>
+      </div>
+      <pre id="sql-text"></pre>
+    </div>
+  </div>
+
+  <div class="filters">
+    <span class="f-label">Filters</span>
+    <label class="f-chip">Industry
+      <select id="f-industry"><option value="">All</option></select>
+    </label>
+    <label class="f-chip">Revenue
+      <select id="f-minrev">
+        <option value="0">Any</option>
+        <option value="1e9" selected>&gt; $1B</option>
+        <option value="10e9">&gt; $10B</option>
+        <option value="100e9">&gt; $100B</option>
+      </select>
+    </label>
+    <span class="f-right dim" id="rowcount"></span>
+  </div>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="k">Universe</div>
+      <div class="v" id="t-universe">—</div>
+      <div class="s">registrants in the ticker↔CIK mapping</div>
+    </div>
+    <div class="tile">
+      <div class="k">In this dataset</div>
+      <div class="v" id="t-companies">—</div>
+      <div class="s">companies · demo slice, full universe with a later release</div>
+    </div>
+    <div class="tile">
+      <div class="k">As-filed facts</div>
+      <div class="v" id="t-facts">—</div>
+      <div class="s" id="t-generated">refreshed —</div>
+    </div>
+  </div>
+
+  <div class="gridbox">
+    <div class="grid-scroll">
+      <table id="grid">
+        <thead><tr id="grid-head"></tr></thead>
+        <tbody id="grid-body">
+          <tr><td class="l loading" colspan="12">Loading DuckDB-WASM and the dataset…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid-foot">
+      <span>Δ columns compare to the prior fiscal year, both as then knowable</span>
+      <span id="timing"></span>
+    </div>
+  </div>
+
+</main>
+
+<footer class="strip">
+  <div class="wrap">
+    <div class="strip-inner">
+      <span class="h serif">Query it with anything.</span>
+      <span><code id="pandas-snippet">pd.read_parquet(".../data/facts.parquet")</code></span>
+      <span><a href="../data/manifest.json">Manifest</a> · <a href="../">Data dictionary</a> · <a href="https://github.com/paul-weiss/asfiled">GitHub</a></span>
+    </div>
+    <div class="disclaimer">asfiled is a data tool built on public SEC filings. Nothing here is investment advice. Point-in-time means values reflect only what was filed on or before the selected date.</div>
+  </div>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

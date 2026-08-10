@@ -10,6 +10,7 @@ pub mod config;
 pub mod edgar;
 pub mod error;
 pub mod normalize;
+pub mod publish;
 pub mod store;
 
 pub use config::Config;
