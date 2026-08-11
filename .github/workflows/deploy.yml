@@ -149,9 +149,13 @@ jobs:
           echo "rollout did not reach RUNNING"; exit 1
 
       - name: Smoke test
+        # The app and data are behind sign-in: anonymous requests must be
+        # TURNED AWAY (303/401), and health must stay open — asserting the
+        # gate, not just liveness.
         run: |
           URL=$(aws lightsail get-container-services --service-name "$SERVICE" \
             --query 'containerServices[0].url' --output text)
           curl -sf "${URL}api/health"
-          curl -sf -o /dev/null "${URL}app/"
-          curl -sf "${URL}data/manifest.json" | head -c 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Accept: text/html' "${URL}app/")" = "303"
+          test "$(curl -s -o /dev/null -w '%{http_code}' "${URL}data/manifest.json")" = "401"
+          curl -sf -o /dev/null "${URL}signin"
