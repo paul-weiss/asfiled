@@ -69,6 +69,7 @@ const COLUMNS = [
 const state = {
   conn: null,
   rows: [],
+  focusLabel: "",
   sortKey: "revenue",
   sortDir: -1,
   // A scenario may narrow to the companies that make its point. Without it,
@@ -95,9 +96,12 @@ function screenerSql(asOf, minRev, industry, tickers) {
   const industryFilter = industry
     ? `AND c.sic_description = '${industry.replaceAll("'", "''")}'`
     : "";
+  // Focus matches on central index key, not ticker: a delisted or renamed
+  // filer has no current ticker at all. Google Inc. filed through 2015 and
+  // appears in no present-day ticker mapping.
   const tickerFilter =
     tickers && tickers.length
-      ? `AND r.ticker IN (${tickers.map((t) => `'${t.replaceAll("'", "''")}'`).join(", ")})`
+      ? `AND c.cik IN (${tickers.map((t) => Number(t)).filter(Number.isFinite).join(", ")})`
       : "";
   return `
 WITH wide AS (
@@ -118,12 +122,17 @@ WITH wide AS (
   GROUP BY cik, fy_derived
 ),
 seq AS (
+  -- Only years that reported revenue can be "the latest year". A new fiscal
+  -- year often has a balance-sheet fact on file before any income statement;
+  -- letting that empty year win the rank made the company vanish from the
+  -- screen once the revenue filter ran.
   SELECT *, lag(revenue) OVER (PARTITION BY cik ORDER BY fy) AS prev_revenue,
          row_number() OVER (PARTITION BY cik ORDER BY fy DESC) AS recency
   FROM wide
+  WHERE revenue IS NOT NULL
 )
 SELECT c.cik,
-       coalesce(r.ticker, '#' || c.cik) AS ticker,
+       coalesce(r.ticker, '—') AS ticker,
        c.name,
        coalesce(c.sic_description, '—') AS industry,
        s.fy,
@@ -173,7 +182,7 @@ async function init() {
   await populateIndustries();
   wireControls();
   // The default date is the FANG scenario, so open with its focus applied.
-  setFocus(["META", "AMZN", "NFLX", "GOOG", "GOOGL"]);
+  setFocus(["1326801", "1018724", "1065280", "1288776"], "FANG before FANG");
   await runScreen();
 }
 
@@ -311,12 +320,14 @@ function render() {
     ` · sorted by ${sortKey}`;
 }
 
-function setFocus(tickers) {
+function setFocus(tickers, label) {
   state.tickers = tickers && tickers.length ? tickers : null;
+  if (label !== undefined) state.focusLabel = label;
   const chip = document.getElementById("focus-chip");
   chip.hidden = !state.tickers;
   if (state.tickers) {
-    document.getElementById("focus-list").textContent = state.tickers.join(", ");
+    document.getElementById("focus-list").textContent =
+      state.focusLabel || `${state.tickers.length} companies`;
   }
 }
 
@@ -340,14 +351,20 @@ function wireControls() {
       ? new Date().toISOString().slice(0, 10)
       : chip.dataset.date;
     document.getElementById("asof-date").value = d;
-    setFocus(chip.dataset.tickers ? chip.dataset.tickers.split(",") : null);
+    setFocus(
+      chip.dataset.tickers ? chip.dataset.tickers.split(",") : null,
+      chip.dataset.tickers ? chip.textContent.split("·")[0].trim() : ""
+    );
     runScreen();
   });
   document.getElementById("scenario").addEventListener("change", (e) => {
     if (!e.target.value) return;
     const opt = e.target.selectedOptions[0];
     document.getElementById("asof-date").value = e.target.value;
-    setFocus(opt.dataset.tickers ? opt.dataset.tickers.split(",") : null);
+    setFocus(
+      opt.dataset.tickers ? opt.dataset.tickers.split(",") : null,
+      opt.dataset.tickers ? opt.textContent.split("·")[0].trim() : ""
+    );
     // A scenario may also relax the revenue floor: "revenue optional" is
     // meaningless while the default filter hides every company without any.
     if (opt.dataset.minrev !== undefined) {
