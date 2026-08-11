@@ -15,7 +15,13 @@ use serde::Serialize;
 use crate::store::Store;
 use crate::Result;
 
-const TABLES: [&str; 4] = ["registrants", "companies", "filings", "facts"];
+const TABLES: [&str; 5] = [
+    "registrants",
+    "companies",
+    "company_names",
+    "filings",
+    "facts",
+];
 
 #[derive(Serialize)]
 struct Manifest {
@@ -93,14 +99,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::open_in_memory().unwrap();
         let published = publish(&store, dir.path()).unwrap();
-        assert_eq!(published.len(), 4);
+        assert_eq!(published.len(), 5);
         assert!(dir.path().join("facts.parquet").exists());
         let manifest: serde_json::Value = serde_json::from_str(
             &std::fs::read_to_string(dir.path().join("manifest.json")).unwrap(),
         )
         .unwrap();
         assert_eq!(manifest["format_version"], 1);
-        assert_eq!(manifest["tables"].as_array().unwrap().len(), 4);
+        assert_eq!(manifest["tables"].as_array().unwrap().len(), 5);
     }
 
     /// The published Parquet must round-trip through DuckDB unchanged.
@@ -119,6 +125,7 @@ mod tests {
             state_of_incorporation: None,
             tickers: vec![],
             exchanges: vec![],
+            former_names: vec![],
         };
         let fact = crate::edgar::facts::Fact {
             cik: 1,

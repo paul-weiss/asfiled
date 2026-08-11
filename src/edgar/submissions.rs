@@ -23,6 +23,16 @@ use crate::Result;
 /// Companies file continuously, so the live document is refetched twice a day.
 const MAX_AGE: Duration = Duration::from_secs(12 * 60 * 60);
 
+/// A name the registrant filed under, and the window it was valid for. EDGAR
+/// publishes this as `formerNames`, which is what makes a company's *name*
+/// point-in-time rather than whatever it is called today.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FormerName {
+    pub name: String,
+    pub from: Option<NaiveDate>,
+    pub to: Option<NaiveDate>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompanyMeta {
     pub cik: u64,
@@ -33,6 +43,7 @@ pub struct CompanyMeta {
     pub state_of_incorporation: Option<String>,
     pub tickers: Vec<String>,
     pub exchanges: Vec<String>,
+    pub former_names: Vec<FormerName>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,8 +79,20 @@ struct Payload {
     tickers: Vec<String>,
     #[serde(default)]
     exchanges: Vec<String>,
+    #[serde(default, rename = "formerNames")]
+    former_names: Vec<FormerNameSpec>,
     #[serde(default)]
     filings: Filings,
+}
+
+#[derive(Deserialize, Default)]
+struct FormerNameSpec {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    from: Option<String>,
+    #[serde(default)]
+    to: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -154,6 +177,23 @@ fn parse_meta(url: &str, payload: &Payload) -> Result<CompanyMeta> {
             .filter(|s| !s.is_empty()),
         tickers: payload.tickers.clone(),
         exchanges: payload.exchanges.clone(),
+        // Timestamps arrive as ISO datetimes; only the date matters.
+        former_names: payload
+            .former_names
+            .iter()
+            .filter(|f| !f.name.is_empty())
+            .map(|f| FormerName {
+                name: f.name.clone(),
+                from: f
+                    .from
+                    .as_deref()
+                    .and_then(|d| as_date(Some(&d[..10.min(d.len())]))),
+                to: f
+                    .to
+                    .as_deref()
+                    .and_then(|d| as_date(Some(&d[..10.min(d.len())]))),
+            })
+            .collect(),
     })
 }
 
@@ -297,6 +337,7 @@ mod tests {
         let (meta, filings) = parse("test://subs", SAMPLE, &mut shards).unwrap();
         assert_eq!(meta.cik, 320193);
         assert_eq!(meta.tickers, vec!["AAPL"]);
+        assert!(meta.former_names.is_empty());
         assert_eq!(shards, vec!["CIK0000320193-submissions-001.json"]);
 
         // The unparseable-date row is skipped.
@@ -318,6 +359,28 @@ mod tests {
         assert_eq!(parse_items(Some("4.02,9.01, 4.02")), vec!["4.02", "9.01"]);
         assert!(parse_items(None).is_empty());
         assert!(parse_items(Some("")).is_empty());
+    }
+
+    /// A renamed registrant keeps the same identifier, so the name is the
+    /// only thing that moved. Facebook became Meta on the same filer.
+    #[test]
+    fn former_names_are_parsed_with_their_windows() {
+        let raw = br#"{"cik": 1326801, "name": "Meta Platforms, Inc.",
+            "formerNames": [{"name": "Facebook Inc",
+              "from": "2005-05-06T04:00:00.000Z", "to": "2021-10-27T04:00:00.000Z"}],
+            "filings": {}}"#;
+        let mut shards = Vec::new();
+        let (meta, _) = parse("test://subs", raw, &mut shards).unwrap();
+        assert_eq!(meta.former_names.len(), 1);
+        assert_eq!(meta.former_names[0].name, "Facebook Inc");
+        assert_eq!(
+            meta.former_names[0].from,
+            NaiveDate::from_ymd_opt(2005, 5, 6)
+        );
+        assert_eq!(
+            meta.former_names[0].to,
+            NaiveDate::from_ymd_opt(2021, 10, 27)
+        );
     }
 
     #[test]

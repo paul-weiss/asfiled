@@ -49,6 +49,16 @@ CREATE TABLE IF NOT EXISTS companies (
     state_of_incorporation VARCHAR
 );
 
+-- A registrant's name is point-in-time too. EDGAR publishes former names
+-- with the window each was valid for, so a 2013 view can say Facebook rather
+-- than Meta. The current name is the row with no end date.
+CREATE TABLE IF NOT EXISTS company_names (
+    cik        UBIGINT NOT NULL,
+    name       VARCHAR NOT NULL,
+    valid_from DATE,
+    valid_to   DATE
+);
+
 CREATE TABLE IF NOT EXISTS filings (
     accession             VARCHAR NOT NULL,
     cik                   UBIGINT NOT NULL,
@@ -86,6 +96,16 @@ CREATE TABLE IF NOT EXISTS facts (
     period_kind  VARCHAR NOT NULL,
     fy_derived   INTEGER,
     fp_derived   VARCHAR
+);
+
+-- The name the registrant filed under on a given date.
+CREATE OR REPLACE MACRO company_name_asof(cik_in, d) AS (
+    SELECT name FROM company_names
+    WHERE cik = cik_in
+      AND (valid_from IS NULL OR valid_from <= d)
+      AND (valid_to IS NULL OR valid_to >= d)
+    ORDER BY valid_to IS NULL DESC, valid_from DESC
+    LIMIT 1
 );
 
 -- The safe read path. For each concept-period, the observation with the
@@ -214,6 +234,7 @@ impl Store {
     ) -> Result<()> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM companies WHERE cik = ?", params![meta.cik])?;
+        tx.execute("DELETE FROM company_names WHERE cik = ?", params![meta.cik])?;
         tx.execute("DELETE FROM filings WHERE cik = ?", params![meta.cik])?;
         tx.execute("DELETE FROM facts WHERE cik = ?", params![meta.cik])?;
 
@@ -244,6 +265,20 @@ impl Store {
                     f.size_bytes,
                     f.items.join(",")
                 ])?;
+            }
+        }
+
+        {
+            // Current name has no end date; former names carry their windows.
+            let mut app = tx.appender("company_names")?;
+            app.append_row(params![
+                meta.cik,
+                meta.name,
+                meta.former_names.iter().filter_map(|f| f.to).max(),
+                None::<chrono::NaiveDate>
+            ])?;
+            for former in &meta.former_names {
+                app.append_row(params![meta.cik, former.name, former.from, former.to])?;
             }
         }
 
@@ -331,6 +366,7 @@ mod tests {
             state_of_incorporation: None,
             tickers: vec!["TST".into()],
             exchanges: vec![],
+            former_names: vec![],
         }
     }
 

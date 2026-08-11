@@ -6,7 +6,7 @@
 import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm";
 
 const DATA_BASE = new URL("../data/", import.meta.url);
-const TABLES = ["registrants", "companies", "filings", "facts"];
+const TABLES = ["registrants", "companies", "company_names", "filings", "facts"];
 
 // Same definitions as the Rust store (src/store/mod.rs). If these drift,
 // the browser and the CLI disagree — treat as a bug.
@@ -133,7 +133,15 @@ seq AS (
 )
 SELECT c.cik,
        coalesce(r.ticker, '—') AS ticker,
-       c.name,
+       -- The name the company filed under on this date, not the one it goes
+       -- by today. Facebook did not become Meta until 2021.
+       coalesce(
+         (SELECT n.name FROM company_names n
+          WHERE n.cik = c.cik
+            AND (n.valid_from IS NULL OR n.valid_from <= DATE '${asOf}')
+            AND (n.valid_to IS NULL OR n.valid_to >= DATE '${asOf}')
+          ORDER BY n.valid_to IS NULL DESC, n.valid_from DESC LIMIT 1),
+         c.name) AS name,
        coalesce(c.sic_description, '—') AS industry,
        s.fy,
        s.revenue,
