@@ -278,7 +278,11 @@ function render() {
             const w = Math.max(1, Math.round((v / maxRev) * 120));
             text = `<span class="bar" style="width:${w}px"></span>${text}`;
           }
-          return `<td class="${cls.trim()}">${text}</td>`;
+          const tip =
+            c.key === "name" || c.key === "industry"
+              ? ` title="${String(v ?? "").replace(/"/g, "&quot;")}"`
+              : "";
+          return `<td class="${cls.trim()}"${tip}>${text}</td>`;
         });
         return `<tr>${cells.join("")}</tr>`;
       })

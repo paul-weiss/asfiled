@@ -34,29 +34,45 @@
         <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
         <path d="M7 3.5V7l2.4 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
-      <input id="asof-date" type="date" value="2020-03-23" min="1994-01-01">
+      <input id="asof-date" type="date" value="2023-03-10" min="1994-01-01">
     </span>
     <span class="presets" id="presets">
       <button class="chip now" data-date="today">Today</button>
-      <button class="chip" data-date="2020-03-23">Covid low · 2020-03-23</button>
       <button class="chip" data-date="2023-03-10">SVB failure · 2023-03-10</button>
-      <label class="chip select-chip">Scenarios
+      <button class="chip" data-date="2022-11-11">FTX collapse · 2022-11-11</button>
+      <label class="chip select-chip">More dates
         <select id="scenario">
           <option value="">…</option>
-          <optgroup label="In coverage (XBRL, 2009→)">
+          <optgroup label="Accounting and disclosure">
+            <option value="2019-02-21">Kraft Heinz writedown and subpoena · 2019-02-21</option>
+            <option value="2020-04-02">Luckin Coffee admits fabricated sales · 2020-04-02</option>
+            <option value="2020-09-10">Nikola short report · 2020-09-10</option>
+            <option value="2020-06-18">Wirecard missing 1.9 billion euro · 2020-06-18</option>
+            <option value="2023-03-08">Silvergate wind-down · 2023-03-08</option>
+          </optgroup>
+          <optgroup label="Market shocks">
             <option value="2010-05-06">Flash Crash · 2010-05-06</option>
             <option value="2011-08-08">US credit downgrade · 2011-08-08</option>
             <option value="2013-06-24">Taper tantrum · 2013-06-24</option>
             <option value="2015-08-24">China devaluation · 2015-08-24</option>
             <option value="2016-02-11">Oil crash low · 2016-02-11</option>
+            <option value="2016-06-24">Brexit vote · 2016-06-24</option>
             <option value="2018-02-05">Volmageddon · 2018-02-05</option>
             <option value="2018-12-24">Christmas Eve low · 2018-12-24</option>
             <option value="2019-09-17">Repo spike · 2019-09-17</option>
-            <option value="2021-01-27">GME squeeze · 2021-01-27</option>
+            <option value="2020-03-23">Covid low · 2020-03-23</option>
+            <option value="2021-02-16">SPAC peak · 2021-02-16</option>
+            <option value="2021-03-26">Archegos unwind · 2021-03-26</option>
             <option value="2022-10-14">Rate-shock low · 2022-10-14</option>
             <option value="2024-08-05">Yen carry unwind · 2024-08-05</option>
           </optgroup>
-          <optgroup label="Pre-XBRL era (filings exist; structured facts don't)">
+          <optgroup label="Digital assets">
+            <option value="2021-01-27">GME squeeze · 2021-01-27</option>
+            <option value="2022-05-09">Terra collapse · 2022-05-09</option>
+            <option value="2023-03-19">Credit Suisse rescue · 2023-03-19</option>
+            <option value="2024-01-10">Bitcoin ETF approval · 2024-01-10</option>
+          </optgroup>
+          <optgroup label="Pre-XBRL era (filings exist; structured facts do not)">
             <option value="2008-09-15">Lehman · 2008-09-15</option>
             <option value="2008-03-16">Bear Stearns · 2008-03-16</option>
             <option value="2001-12-02">Enron collapse · 2001-12-02</option>
