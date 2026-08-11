@@ -173,7 +173,7 @@ async function init() {
   await populateIndustries();
   wireControls();
   // The default date is the FANG scenario, so open with its focus applied.
-  setFocus(["AAPL", "AMZN", "GOOGL", "META", "NFLX"]);
+  setFocus(["META", "AMZN", "NFLX", "GOOG", "GOOGL"]);
   await runScreen();
 }
 

@@ -50,7 +50,7 @@ jobs:
             XOM CVX COP \
             WMT PG KO PEP COST MCD HD NKE DIS \
             BA CAT GE HON UPS \
-            T VZ INTC IBM AMD NFLX
+            T VZ INTC IBM AMD NFLX 1288776
           ./target/release/asfiled publish --out data/publish
 
       - name: Build image
