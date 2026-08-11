@@ -71,6 +71,9 @@ const state = {
   rows: [],
   sortKey: "revenue",
   sortDir: -1,
+  // A scenario may narrow to the companies that make its point. Without it,
+  // "FANG before FANG" hides Netflix forty rows below Walmart.
+  tickers: null,
 };
 
 function money(v) {
@@ -88,10 +91,14 @@ function ratio(v) {
   return v == null ? "—" : v.toFixed(2);
 }
 
-function screenerSql(asOf, minRev, industry) {
+function screenerSql(asOf, minRev, industry, tickers) {
   const industryFilter = industry
     ? `AND c.sic_description = '${industry.replaceAll("'", "''")}'`
     : "";
+  const tickerFilter =
+    tickers && tickers.length
+      ? `AND r.ticker IN (${tickers.map((t) => `'${t.replaceAll("'", "''")}'`).join(", ")})`
+      : "";
   return `
 WITH wide AS (
   -- Flows live on the FY duration; balance-sheet levels are instants that
@@ -131,7 +138,7 @@ SELECT c.cik,
 FROM seq s
 JOIN companies c USING (cik)
 LEFT JOIN (SELECT cik, min(ticker) AS ticker FROM registrants GROUP BY cik) r USING (cik)
-WHERE s.recency = 1 AND s.revenue >= ${Number(minRev)} ${industryFilter}
+WHERE s.recency = 1 AND s.revenue >= ${Number(minRev)} ${industryFilter} ${tickerFilter}
 ORDER BY s.revenue DESC`;
 }
 
@@ -165,6 +172,8 @@ async function init() {
   await refreshTiles(manifest);
   await populateIndustries();
   wireControls();
+  // The default date is the FANG scenario, so open with its focus applied.
+  setFocus(["AAPL", "AMZN", "GOOGL", "META", "NFLX"]);
   await runScreen();
 }
 
@@ -204,13 +213,14 @@ function controls() {
     asOf: document.getElementById("asof-date").value,
     minRev: document.getElementById("f-minrev").value,
     industry: document.getElementById("f-industry").value,
+    tickers: state.tickers,
   };
 }
 
 async function runScreen() {
-  const { asOf, minRev, industry } = controls();
+  const { asOf, minRev, industry, tickers } = controls();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) return;
-  const sql = screenerSql(asOf, minRev, industry);
+  const sql = screenerSql(asOf, minRev, industry, tickers);
   document.getElementById("sql-text").textContent = sql.trim();
 
   const started = performance.now();
@@ -301,7 +311,25 @@ function render() {
     ` · sorted by ${sortKey}`;
 }
 
+function setFocus(tickers) {
+  state.tickers = tickers && tickers.length ? tickers : null;
+  const chip = document.getElementById("focus-chip");
+  chip.hidden = !state.tickers;
+  if (state.tickers) {
+    document.getElementById("focus-list").textContent = state.tickers.join(", ");
+  }
+}
+
 function wireControls() {
+  const clear = document.getElementById("focus-clear");
+  const doClear = () => {
+    setFocus(null);
+    runScreen();
+  };
+  clear.addEventListener("click", doClear);
+  clear.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") doClear();
+  });
   document.getElementById("asof-date").addEventListener("change", runScreen);
   document.getElementById("f-minrev").addEventListener("change", runScreen);
   document.getElementById("f-industry").addEventListener("change", runScreen);
@@ -312,11 +340,14 @@ function wireControls() {
       ? new Date().toISOString().slice(0, 10)
       : chip.dataset.date;
     document.getElementById("asof-date").value = d;
+    setFocus(chip.dataset.tickers ? chip.dataset.tickers.split(",") : null);
     runScreen();
   });
   document.getElementById("scenario").addEventListener("change", (e) => {
     if (!e.target.value) return;
+    const opt = e.target.selectedOptions[0];
     document.getElementById("asof-date").value = e.target.value;
+    setFocus(opt.dataset.tickers ? opt.dataset.tickers.split(",") : null);
     runScreen();
   });
   const toggle = document.getElementById("toggle-sql");

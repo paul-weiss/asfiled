@@ -122,6 +122,9 @@ nav.main a.active { color: var(--ink); font-weight: 600; box-shadow: inset 0 -2p
 .f-chip select { border: none; background: transparent; color: var(--ink); font-weight: 600; font-size: 12.5px; }
 .f-chip select:focus { outline: none; }
 .f-right { margin-left: auto; }
+#focus-chip { border-color: var(--time); color: var(--ink); }
+#focus-chip .x { color: var(--muted); cursor: pointer; margin-left: 2px; }
+#focus-chip .x:hover { color: var(--ink); }
 
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 4px 0 16px; }
 @media (max-width: 760px) { .tiles { grid-template-columns: 1fr; } }
