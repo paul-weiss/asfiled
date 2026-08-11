@@ -363,20 +363,18 @@ function wireControls() {
       ? new Date().toISOString().slice(0, 10)
       : chip.dataset.date;
     document.getElementById("asof-date").value = d;
-    setFocus(
-      chip.dataset.tickers ? chip.dataset.tickers.split(",") : null,
-      chip.dataset.tickers ? chip.textContent.split("·")[0].trim() : ""
-    );
+    if (chip.dataset.tickers) {
+      setFocus(chip.dataset.tickers.split(","), chip.textContent.split("·")[0].trim());
+    }
     runScreen();
   });
   document.getElementById("scenario").addEventListener("change", (e) => {
     if (!e.target.value) return;
     const opt = e.target.selectedOptions[0];
     document.getElementById("asof-date").value = e.target.value;
-    setFocus(
-      opt.dataset.tickers ? opt.dataset.tickers.split(",") : null,
-      opt.dataset.tickers ? opt.textContent.split("·")[0].trim() : ""
-    );
+    if (opt.dataset.tickers) {
+      setFocus(opt.dataset.tickers.split(","), opt.textContent.split("·")[0].trim());
+    }
     // A scenario may also relax the revenue floor: "revenue optional" is
     // meaningless while the default filter hides every company without any.
     if (opt.dataset.minrev !== undefined) {

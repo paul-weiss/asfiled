@@ -123,6 +123,7 @@ nav.main a.active { color: var(--ink); font-weight: 600; box-shadow: inset 0 -2p
 .f-chip select:focus { outline: none; }
 .f-right { margin-left: auto; }
 #focus-chip { border-color: var(--time); color: var(--ink); }
+#focus-chip[hidden] { display: none; }
 #focus-chip .x { color: var(--muted); cursor: pointer; margin-left: 2px; }
 #focus-chip .x:hover { color: var(--ink); }
 
