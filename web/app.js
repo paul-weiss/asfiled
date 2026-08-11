@@ -156,6 +156,10 @@ FROM seq s
 JOIN companies c USING (cik)
 LEFT JOIN (SELECT cik, min(ticker) AS ticker FROM registrants GROUP BY cik) r USING (cik)
 WHERE s.recency = 1 AND s.revenue >= ${Number(minRev)} ${industryFilter} ${tickerFilter}
+  -- A filer that stopped reporting should not appear in a later screen with
+  -- its final numbers looking current. Google Inc. last filed for 2015 and
+  -- would otherwise rank above Netflix today.
+  AND s.fy >= year(DATE '${asOf}') - 2
 ORDER BY s.revenue DESC`;
 }
 
@@ -190,7 +194,7 @@ async function init() {
   await populateIndustries();
   wireControls();
   // The default date is the FANG scenario, so open with its focus applied.
-  setFocus(["1326801", "1018724", "1065280", "1288776"], "FANG before FANG");
+  setFocus(["1326801", "1018724", "1065280", "1288776", "1652044"], "FANG before FANG");
   await runScreen();
 }
 
