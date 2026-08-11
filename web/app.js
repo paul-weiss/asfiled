@@ -348,6 +348,11 @@ function wireControls() {
     const opt = e.target.selectedOptions[0];
     document.getElementById("asof-date").value = e.target.value;
     setFocus(opt.dataset.tickers ? opt.dataset.tickers.split(",") : null);
+    // A scenario may also relax the revenue floor: "revenue optional" is
+    // meaningless while the default filter hides every company without any.
+    if (opt.dataset.minrev !== undefined) {
+      document.getElementById("f-minrev").value = opt.dataset.minrev;
+    }
     runScreen();
   });
   const toggle = document.getElementById("toggle-sql");
