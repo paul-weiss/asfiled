@@ -37,7 +37,7 @@ jobs:
           <title>asfiled</title><a href="https://asfiled.io/app/">asfiled.io/app</a>
           HTML
           cp site/app/index.html site/data/index.html
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
